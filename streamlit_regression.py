@@ -6,7 +6,7 @@ import pandas as pd
 import pickle
 
 ## Load the trained model
-model = tf.keras.models.load_model('model_reg.keras',compile=False)
+model = tf.keras.models.load_model('model.keras',compile=False)
 
 ## Load the encoders and scaler
 with open('label_encoder.pkl','rb') as file:
@@ -61,8 +61,16 @@ input_data_scaled = scaler.transform(input_data)
 
 ## Predict churn
 prediction = model.predict(input_data_scaled)
-#prediction_proba = prediction[0][0]
+prediction_proba = prediction[0][0]
 
 ## Display results
 st.subheader("Prediction Results")
-st.write(f'**Churn Probability:** {prediction}')
+st.write(f'**Churn Probability:** {prediction_proba:.2%}')
+
+if prediction_proba > 0.5:
+    st.error('The customer is likely to churn')
+else:
+    st.success('The customer is not likely to churn')
+
+## Optional: Add a probability bar
+st.progress(float(prediction_proba))
