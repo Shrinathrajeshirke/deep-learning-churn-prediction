@@ -6,32 +6,43 @@ import pandas as pd
 import pickle
 
 ## Load the trained model
-model = tf.keras.models.load_model('model.keras',compile=False)
+@st.cache_resource
+def load_model():
+    model = tf.keras.models.load_model('model_reg.keras', compile=False)
+    model.compile(optimizer='adam', loss='mean_absolute_error', metrics=['mae'])
+    return model
 
 ## Load the encoders and scaler
-with open('label_encoder.pkl','rb') as file:
-    label_encoder = pickle.load(file)
+@st.cache_resource
+def load_preprocessing_tools():
+    with open('encoder.pkl','rb') as file:
+        label_encoder = pickle.load(file)
+    
+    with open('onehotencoder.pkl','rb') as file:
+        onehot_encoder = pickle.load(file)
+    
+    with open('scaler.pkl', 'rb') as file:
+        scaler = pickle.load(file)
+    
+    return label_encoder, onehot_encoder, scaler
 
-with open('onehot_encoder.pkl','rb') as file:
-    onehot_encoder = pickle.load(file)
-
-with open('scaler.pkl', 'rb') as file:
-    scaler = pickle.load(file)
+model = load_model()
+label_encoder, onehot_encoder, scaler = load_preprocessing_tools()
 
 ## Streamlit app
-st.title("Customer Churn Prediction")
+st.title("Customer Salary Prediction")
 
 ## User inputs
 geography = st.selectbox('Geography', onehot_encoder.categories_[0])
 gender = st.selectbox('Gender', label_encoder.classes_)
-age = st.slider('Age', 18, 92)
-balance = st.number_input('Balance')
-credit_score = st.number_input('Credit Score')
-estimated_salary = st.number_input('Estimated Salary')
-tenure = st.slider('Tenure', 0, 10)
-num_of_products = st.slider('Number of products', 1, 4)
+age = st.slider('Age', 18, 92, 40)
+balance = st.number_input('Balance', min_value=0.0, value=0.0)
+credit_score = st.number_input('Credit Score', min_value=300, max_value=850, value=600)
+tenure = st.slider('Tenure', 0, 10, 3)
+num_of_products = st.slider('Number of products', 1, 4, 1)
 has_cr_card = st.selectbox('Has credit card', [0, 1])
 is_active_member = st.selectbox('Is active member', [0, 1])
+exited = st.selectbox('Has Exited', [0, 1])
 
 ## Prepare the input data
 input_data = pd.DataFrame({
@@ -43,7 +54,7 @@ input_data = pd.DataFrame({
     'NumOfProducts': [num_of_products],
     'HasCrCard': [has_cr_card],
     'IsActiveMember': [is_active_member],
-    'EstimatedSalary': [estimated_salary]
+    'Exited': [exited]
 })
 
 ## OneHot encode geography
@@ -59,18 +70,17 @@ input_data = pd.concat([input_data.reset_index(drop=True), geo_encoded_df], axis
 ## Scale the input data
 input_data_scaled = scaler.transform(input_data)
 
-## Predict churn
-prediction = model.predict(input_data_scaled)
-prediction_proba = prediction[0][0]
+## Predict salary
+prediction = model.predict(input_data_scaled, verbose=0)
+predicted_salary = prediction[0][0]
 
 ## Display results
 st.subheader("Prediction Results")
-st.write(f'**Churn Probability:** {prediction_proba:.2%}')
+st.write(f'Predicted Estimated Salary: ${predicted_salary:,.2f}')
 
-if prediction_proba > 0.5:
-    st.error('The customer is likely to churn')
+if predicted_salary < 75000:
+    st.info('Lower salary range')
+elif predicted_salary < 125000:
+    st.success('Mid salary range')
 else:
-    st.success('The customer is not likely to churn')
-
-## Optional: Add a probability bar
-st.progress(float(prediction_proba))
+    st.success('Upper salary range')
